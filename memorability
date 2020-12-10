@@ -1,0 +1,77 @@
+#try sth cool
+dddf = read.csv('removed') 
+dddf = dddf[, c("Sample_ID", "SubsequentAccuracy", "SubsequentMorph", "SID", "Fix_Count")]
+dddf$SID = gsub("_","", dddf$SID)
+dddf$SID = as.numeric(as.character(dddf$SID))
+dddf$img = ifelse(dddf$SID <= 9, substr(dddf$Sample_ID, 11,17), substr(dddf$Sample_ID, 12,18))
+dddf$repID = ifelse(dddf$SID <= 9, substr(dddf$Sample_ID, 25, 25), substr(dddf$Sample_ID, 26, 26))
+dddf$imgFam = substr(dddf$img, 0, 2)
+
+dddf = subset(dddf, dddf$repID == 1) 
+dddf$SubsequentAccuracy = as.character(dddf$SubsequentAccuracy)
+
+dddf_old = subset(dddf, dddf$SubsequentMorph == "Old")
+dddf_old = subset(dddf_old, dddf_old$SubsequentAccuracy != "NoResponse")
+dddf_old$SID = as.numeric(as.character(dddf_old$SID))
+
+
+#trying loop for spliting data
+set.seed(3456)
+
+mylist = list()
+for (i in 1:50){
+  #SID = createDataPartition(unique(dddf_old$SID), p = .5, list = FALSE, times = 1)
+  SubjectID = sample(unique(dddf_old$SID), 15); SubjectID = as.data.frame(SubjectID)
+  dddf_old1 = subset(dddf_old, subset = dddf_old$SID %in% SubjectID[["SubjectID"]])
+  dddf_old2 = dddf_old[!dddf_old$SID %in% SubjectID[["SubjectID"]],]
+  
+  dddf_old1 %>%
+    group_by(imgFam) %>% #changeme imgFam
+    dplyr::count(SubsequentAccuracy) #what the heck
+  
+  count1 = ddply(dddf_old1, .(imgFam, SubsequentAccuracy), nrow) #changeme: img
+  
+  famacc = count1 %>% 
+    spread("SubsequentAccuracy", "V1") 
+  famacc[is.na(famacc)] = 0
+  
+  famacc$hitrate = (famacc$Hit / (famacc$Hit + famacc$Miss)) * 100
+  
+  dddf_old2 %>%
+    group_by(imgFam) %>% #changeme imgFam
+    dplyr::count(SubsequentAccuracy) #what the heck
+  
+  count2 = ddply(dddf_old2, .(imgFam, SubsequentAccuracy), nrow) #changeme: img
+  
+  famacc2 = count2 %>% 
+    spread("SubsequentAccuracy", "V1") 
+  famacc2[is.na(famacc2)] = 0
+  
+  famacc2$hitrate = (famacc2$Hit / (famacc2$Hit + famacc2$Miss)) * 100  
+  
+  happypan = cor.test(famacc$hitrate, famacc2$hitrate,  method = "spearman") 
+  mylist[[i]] = happypan$estimate
+  }
+
+mydataframe = do.call(rbind.data.frame, mylist)
+colnames(mydataframe)[1] = "correlation"
+mydataframe$correlation = as.numeric(as.character(mydataframe$correlation))
+mean(mydataframe$correlation)
+
+
+
+
+
+setDT(famacc)[order(-hitrate), rank := rleid(hitrate)]
+setDT(famacc)[order(imgFam)] #x=changeme imgFam
+famacc
+
+## rank ##
+setDT(famacc2)[order(-hitrate), rank := rleid(hitrate)]
+setDT(famacc2)[order(imgFam)] #changeme imgFam
+famacc2
+
+
+#Finding correlation of ranks
+cor(famacc$rank, famacc2$rank)
+cor.test(famacc$hitrate, famacc2$hitrate,  method = "spearman")
